@@ -1,0 +1,10 @@
+{
+  "name": "Myraa AI Voice Assistant",
+  "description": "Real-time voice-to-voice AI companion powered by Gemini Live API with expressive speech, ultra-low latency, and browser tool interactions.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
