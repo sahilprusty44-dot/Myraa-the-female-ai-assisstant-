@@ -136,8 +136,18 @@ Tools & Browser Actions:
   * "setVisualVibe": to alter your visual energy (calm, energetic, cyberpunk, aurora, zen).
 - When a user asks you to do any of these, call the tool immediately. After the tool responds, confirm with a brief, charming remark.`;
 
-// WebSocket server on /live
-const wss = new WebSocketServer({ server, path: '/live' });
+// WebSocket server for /live with explicit upgrade handling
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  const url = req.url || '';
+  // Match /live or /live?query
+  if (url === '/live' || url.startsWith('/live?') || url.startsWith('/live/')) {
+    wss.handleUpgrade(req, socket, head, (clientWs) => {
+      wss.emit('connection', clientWs, req);
+    });
+  }
+});
 
 wss.on('connection', async (clientWs: WebSocket) => {
   console.log('[Live] Client connected to /live');
@@ -210,10 +220,18 @@ wss.on('connection', async (clientWs: WebSocket) => {
             onmessage: (message) => {
               if (clientWs.readyState !== WebSocket.OPEN) return;
 
-              // Check for audio chunks
+              // Check for audio chunks and text parts
               const parts = message.serverContent?.modelTurn?.parts;
               if (parts && parts.length > 0) {
                 for (const part of parts) {
+                  if (part.text) {
+                    clientWs.send(
+                      JSON.stringify({
+                        type: 'transcript',
+                        text: part.text,
+                      })
+                    );
+                  }
                   if (part.inlineData?.data) {
                     clientWs.send(
                       JSON.stringify({
@@ -312,6 +330,20 @@ wss.on('connection', async (clientWs: WebSocket) => {
             data: msg.audio,
             mimeType: 'audio/pcm;rate=16000',
           },
+        });
+        return;
+      }
+
+      if (msg.type === 'text' && liveSession && msg.text) {
+        console.log('[Live] Sending client text turn to Gemini Live:', msg.text);
+        liveSession.sendClientContent({
+          turns: [
+            {
+              role: 'user',
+              parts: [{ text: msg.text }],
+            },
+          ],
+          turnComplete: true,
         });
         return;
       }

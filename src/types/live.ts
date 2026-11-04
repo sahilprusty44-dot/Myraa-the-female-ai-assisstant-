@@ -33,10 +33,19 @@ export interface FunctionCallItem {
   args: Record<string, any>;
 }
 
+export interface ChatMessage {
+  id: string;
+  sender: 'user' | 'myraa' | 'system';
+  text: string;
+  timestamp: string; // HH:MM:SS
+  isLive?: boolean;
+}
+
 export interface ServerMessage {
-  type: 'status' | 'audio' | 'interrupted' | 'turnComplete' | 'toolCall' | 'error' | 'pong';
+  type: 'status' | 'audio' | 'transcript' | 'interrupted' | 'turnComplete' | 'toolCall' | 'error' | 'pong';
   status?: string;
   audio?: string;
+  text?: string;
   model?: string;
   voice?: string;
   message?: string;

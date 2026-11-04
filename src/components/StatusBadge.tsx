@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Mic, MicOff, Settings2, Zap, BookOpen, Activity } from 'lucide-react';
+import { Sparkles, Mic, MicOff, Settings2, Zap, BookOpen, Activity, Terminal } from 'lucide-react';
 import { ThinkingOrb, OrbState } from 'thinking-orbs';
 import { AssistantState, ThemeConfig } from '../types/live';
 
@@ -10,6 +10,8 @@ interface StatusBadgeProps {
   isMuted: boolean;
   notesCount: number;
   toolsCount: number;
+  isTerminalOpen?: boolean;
+  onToggleTerminal?: () => void;
   onToggleMute: () => void;
   onOpenDrawer: () => void;
 }
@@ -21,6 +23,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   isMuted,
   notesCount,
   toolsCount,
+  isTerminalOpen,
+  onToggleTerminal,
   onToggleMute,
   onOpenDrawer,
 }) => {
@@ -148,6 +152,22 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           >
             {isMuted ? <MicOff className="w-4 h-4 text-rose-400" /> : <Mic className="w-4 h-4 text-emerald-400" />}
             <span className="hidden md:inline">{isMuted ? 'Muted' : 'Mic Live'}</span>
+          </button>
+        )}
+
+        {/* Terminal Toggle Button */}
+        {onToggleTerminal && (
+          <button
+            onClick={onToggleTerminal}
+            className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-md active:scale-95 ${
+              isTerminalOpen
+                ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300'
+                : 'border-white/10 bg-white/5 hover:bg-white/10 text-slate-300'
+            }`}
+            title="Toggle Live Chat Terminal"
+          >
+            <Terminal className="w-4 h-4 text-cyan-400" />
+            <span className="hidden md:inline font-mono text-xs">Terminal</span>
           </button>
         )}
 

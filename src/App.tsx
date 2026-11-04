@@ -7,6 +7,7 @@ import {
   NoteItem,
   ToolActionLog,
   ActivePortal,
+  ChatMessage,
 } from './types/live';
 import { THEMES } from './utils/theme';
 import { ToolManager } from './services/ToolManager';
@@ -18,6 +19,7 @@ import { PortalCard } from './components/PortalCard';
 import { CompanionDrawer } from './components/CompanionDrawer';
 import { VibeAtmosphere } from './components/VibeAtmosphere';
 import { NotificationBanner } from './components/NotificationBanner';
+import { ChatTerminal } from './components/ChatTerminal';
 import { Volume2, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -41,6 +43,10 @@ export default function App() {
   const [orbSpeed, setOrbSpeed] = useState<number>(1);
   const [isOrbPaused, setIsOrbPaused] = useState<boolean>(false);
   const [showNucleusOrb, setShowNucleusOrb] = useState<boolean>(true);
+
+  // Real-Time Chat Terminal State
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(true);
 
   // Companion Notepad & Tool History
   const [notes, setNotes] = useState<NoteItem[]>(() => {
@@ -84,6 +90,16 @@ export default function App() {
       },
       onActionLogged: (log) => {
         setToolLogs((prev) => [log, ...prev.slice(0, 40)]);
+        const timestamp = new Date().toTimeString().split(' ')[0];
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Math.random().toString(36).substring(2, 9),
+            sender: 'system',
+            text: `[SYS_EXEC] ${log.toolName}: ${log.summary}`,
+            timestamp,
+          },
+        ]);
       },
     });
 
@@ -102,6 +118,46 @@ export default function App() {
       },
       onLatencyUpdate: (ms) => {
         setLatencyMs(ms);
+      },
+      onTranscript: (text, sender, isFinal) => {
+        const timestamp = new Date().toTimeString().split(' ')[0];
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          // If streaming chunk from same sender
+          if (last && last.sender === sender && last.isLive) {
+            if (isFinal) {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  text: sender === 'myraa' ? (last.text + text).trim() : text,
+                  isLive: false,
+                },
+              ];
+            } else {
+              return [
+                ...prev.slice(0, -1),
+                {
+                  ...last,
+                  text: sender === 'myraa' ? last.text + text : text,
+                  isLive: true,
+                },
+              ];
+            }
+          }
+
+          if (!text.trim()) return prev;
+          return [
+            ...prev,
+            {
+              id: Math.random().toString(36).substring(2, 9),
+              sender,
+              text,
+              timestamp,
+              isLive: !isFinal,
+            },
+          ];
+        });
       },
     });
 
@@ -150,76 +206,111 @@ export default function App() {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
+  // Send message via terminal input
+  const handleSendChatMessage = async (text: string) => {
+    if (!liveSessionRef.current) return;
+    if (assistantState === 'disconnected') {
+      try {
+        await liveSessionRef.current.connect();
+      } catch (err: any) {
+        setErrorMessage(err?.message || 'Failed to start voice session');
+        return;
+      }
+    }
+    liveSessionRef.current.sendTextMessage(text);
+  };
+
+  const handleClearMessages = () => {
+    setMessages([]);
+  };
+
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between overflow-hidden bg-[#06080F] text-slate-100 font-sans">
+    <div className="relative min-h-screen w-full flex flex-col justify-between overflow-x-hidden bg-[#06080F] text-slate-100 font-sans">
       {/* Immersive Animated Atmosphere */}
       <VibeAtmosphere theme={activeTheme} vibe={vibe} state={assistantState} />
 
-      {/* Floating Error / Notification Banner */}
-      <NotificationBanner
-        message={errorMessage}
-        onDismiss={() => setErrorMessage(null)}
+      {/* Real-time Cyberpunk Chat Terminal Docked on Left */}
+      <ChatTerminal
+        messages={messages}
+        onSendMessage={handleSendChatMessage}
+        onClearMessages={handleClearMessages}
+        isOpen={isTerminalOpen}
+        onToggleOpen={() => setIsTerminalOpen((prev) => !prev)}
+        state={assistantState}
+        theme={activeTheme}
+        latencyMs={latencyMs}
       />
 
-      {/* Top Header & Status Indicator */}
-      <div className="flex justify-center w-full pt-2">
-        <StatusBadge
-          state={assistantState}
-          theme={activeTheme}
-          latencyMs={latencyMs}
-          isMuted={isMuted}
-          notesCount={notes.length}
-          toolsCount={toolLogs.length}
-          onToggleMute={handleToggleMute}
-          onOpenDrawer={() => setIsDrawerOpen(true)}
-        />
-      </div>
-
-      {/* Centerpiece: Real-time Audio-to-Audio Core Orb with Libraries.dev ThinkingOrb */}
-      <main className="flex-1 flex flex-col items-center justify-center px-4 -mt-4 sm:-mt-6">
-        <CoreOrb
-          state={assistantState}
-          theme={activeTheme}
-          vibe={vibe}
-          micVolume={micVolume}
-          outputVolume={outputVolume}
-          isMuted={isMuted}
-          onToggleConnect={handleToggleConnect}
-          onToggleMute={handleToggleMute}
-          customOrbState={customOrbState}
-          orbSpeed={orbSpeed}
-          isOrbPaused={isOrbPaused}
-          showNucleusOrb={showNucleusOrb}
-        />
-      </main>
-
-      {/* Dynamic Spectral Waveform at Viewport Bottom */}
-      <footer className="w-full flex flex-col items-center justify-center pb-4 sm:pb-6 z-20">
-        <Visualizer
-          state={assistantState}
-          theme={activeTheme}
-          vibe={vibe}
-          micAnalyser={liveSessionRef.current?.getMicAnalyser() || null}
-          outputAnalyser={liveSessionRef.current?.getOutputAnalyser() || null}
+      {/* Main Workspace with responsive left-padding transition for terminal */}
+      <div
+        className={`flex-1 flex flex-col justify-between transition-all duration-300 w-full ${
+          isTerminalOpen ? 'lg:pl-[420px]' : ''
+        }`}
+      >
+        {/* Floating Error / Notification Banner */}
+        <NotificationBanner
+          message={errorMessage}
+          onDismiss={() => setErrorMessage(null)}
         />
 
-        {/* Minimalist Subtitle Indicator */}
-        <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono tracking-wide mt-1">
-          <span className="flex items-center gap-1">
-            <Volume2 className="w-3.5 h-3.5 text-slate-400" />
-            24kHz PCM Audio
-          </span>
-          <span>•</span>
-          <span className="flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-            Libraries.dev Orbs
-          </span>
-          <span>•</span>
-          <span className="hidden sm:inline-flex items-center gap-1 text-slate-400">
-            Voice-Only Interface
-          </span>
+        {/* Top Header & Status Indicator */}
+        <div className="flex justify-center w-full pt-2">
+          <StatusBadge
+            state={assistantState}
+            theme={activeTheme}
+            latencyMs={latencyMs}
+            isMuted={isMuted}
+            notesCount={notes.length}
+            toolsCount={toolLogs.length}
+            isTerminalOpen={isTerminalOpen}
+            onToggleTerminal={() => setIsTerminalOpen((prev) => !prev)}
+            onToggleMute={handleToggleMute}
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+          />
         </div>
-      </footer>
+
+        {/* Centerpiece: Real-time Audio-to-Audio Core Orb with Libraries.dev ThinkingOrb */}
+        <main className="flex-1 flex flex-col items-center justify-center px-4 -mt-4 sm:-mt-6">
+          <CoreOrb
+            state={assistantState}
+            theme={activeTheme}
+            vibe={vibe}
+            micVolume={micVolume}
+            outputVolume={outputVolume}
+            isMuted={isMuted}
+            onToggleConnect={handleToggleConnect}
+            onToggleMute={handleToggleMute}
+          />
+        </main>
+
+        {/* Dynamic Spectral Waveform at Viewport Bottom */}
+        <footer className="w-full flex flex-col items-center justify-center pb-4 sm:pb-6 z-20">
+          <Visualizer
+            state={assistantState}
+            theme={activeTheme}
+            vibe={vibe}
+            micAnalyser={liveSessionRef.current?.getMicAnalyser() || null}
+            outputAnalyser={liveSessionRef.current?.getOutputAnalyser() || null}
+          />
+
+          {/* Minimalist Subtitle Indicator */}
+          <div className="flex items-center gap-3 text-[11px] text-slate-500 font-mono tracking-wide mt-1">
+            <span className="flex items-center gap-1">
+              <Volume2 className="w-3.5 h-3.5 text-slate-400" />
+              24kHz PCM Audio
+            </span>
+            <span>•</span>
+            <span className="flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-slate-400" />
+              Libraries.dev Orbs
+            </span>
+            <span>•</span>
+            <span className="hidden sm:inline-flex items-center gap-1 text-slate-400">
+              Live Terminal Synced
+            </span>
+          </div>
+        </footer>
+      </div>
 
       {/* Floating Browser Tool Card (when Myraa opens website or executes tool) */}
       <PortalCard
@@ -245,14 +336,6 @@ export default function App() {
         notes={notes}
         onDeleteNote={handleDeleteNote}
         toolLogs={toolLogs}
-        customOrbState={customOrbState}
-        onOrbStateChange={setCustomOrbState}
-        orbSpeed={orbSpeed}
-        onOrbSpeedChange={setOrbSpeed}
-        isOrbPaused={isOrbPaused}
-        onToggleOrbPaused={() => setIsOrbPaused((p) => !p)}
-        showNucleusOrb={showNucleusOrb}
-        onToggleNucleusOrb={() => setShowNucleusOrb((s) => !s)}
       />
     </div>
   );

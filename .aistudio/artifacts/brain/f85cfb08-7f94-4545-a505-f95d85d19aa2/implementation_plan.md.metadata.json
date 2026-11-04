@@ -1,0 +1,6 @@
+{
+  "summary": "Architecture and design plan for the Real-Time Cyberpunk Chat Terminal docked on the left side of the screen. Incorporates real-time bidirectional conversation logging (live speech-to-text transcripts, typed text inputs, and Myraa streaming responses), monospaced timestamped telemetry, and responsive split-view orchestration with the central 3D liquid blob.",
+  "updatedAt": "2026-10-13T10:53:07.661436678Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

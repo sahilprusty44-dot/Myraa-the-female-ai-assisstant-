@@ -13,6 +13,7 @@ export interface LiveSessionCallbacks {
   onVolumeChange: (micVolume: number, outputVolume: number) => void;
   onError: (errorMsg: string) => void;
   onLatencyUpdate: (ms: number) => void;
+  onTranscript?: (text: string, sender: 'user' | 'myraa', isFinal?: boolean) => void;
 }
 
 export class LiveSession {
@@ -30,6 +31,7 @@ export class LiveSession {
   private outputVolume: number = 0;
   private selectedVoice: string = 'Aoede';
   private selectedModel: string = 'gemini-3.1-flash-live-preview';
+  private recognition: any = null;
 
   constructor(
     toolManager: ToolManager,
@@ -84,7 +86,10 @@ export class LiveSession {
 
       this.ws = new WebSocket(wsUrl);
 
+      let hasOpened = false;
+
       this.ws.onopen = async () => {
+        hasOpened = true;
         console.log('[LiveSession] WebSocket connection established');
 
         // Start Gemini Live session
@@ -125,6 +130,41 @@ export class LiveSession {
         // Start ping/latency & volume animation loops
         this.startHeartbeat();
         this.startVolumeLoop();
+
+        // Start Web Speech API for real-time user speech-to-text if supported
+        if (typeof window !== 'undefined' && (('SpeechRecognition' in window) || ('webkitSpeechRecognition' in window))) {
+          try {
+            const SpeechClass = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            this.recognition = new SpeechClass();
+            this.recognition.continuous = true;
+            this.recognition.interimResults = true;
+            this.recognition.lang = 'en-US';
+
+            this.recognition.onresult = (event: any) => {
+              let finalTranscript = '';
+              let interimTranscript = '';
+              for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                  finalTranscript += event.results[i][0].transcript;
+                } else {
+                  interimTranscript += event.results[i][0].transcript;
+                }
+              }
+              const text = (finalTranscript || interimTranscript).trim();
+              if (text) {
+                this.callbacks.onTranscript?.(text, 'user', Boolean(finalTranscript));
+              }
+            };
+
+            this.recognition.onerror = (e: any) => {
+              console.warn('[LiveSession] Web Speech recognition notice:', e.error);
+            };
+
+            this.recognition.start();
+          } catch (recErr) {
+            console.warn('[LiveSession] Web Speech recognition failed to initialize:', recErr);
+          }
+        }
       };
 
       this.ws.onmessage = async (event: MessageEvent) => {
@@ -140,6 +180,10 @@ export class LiveSession {
             }
           }
 
+          if (msg.type === 'transcript' && msg.text) {
+            this.callbacks.onTranscript?.(msg.text, 'myraa', false);
+          }
+
           if (msg.type === 'audio' && msg.audio) {
             // Model generated audio chunk
             await this.player.playChunk(msg.audio);
@@ -149,11 +193,15 @@ export class LiveSession {
             // Instant speech interruption
             console.log('[LiveSession] User interrupted Myraa');
             this.player.interrupt();
+            this.callbacks.onTranscript?.(' [Interrupted]', 'myraa', true);
             this.setState('listening');
           }
 
-          if (msg.type === 'turnComplete' && !this.player.isPlaying() && this.state !== 'disconnected') {
-            this.setState('thinking');
+          if (msg.type === 'turnComplete') {
+            this.callbacks.onTranscript?.('', 'myraa', true);
+            if (!this.player.isPlaying() && this.state !== 'disconnected') {
+              this.setState('thinking');
+            }
           }
 
           if (msg.type === 'toolCall' && msg.toolCall?.functionCalls) {
@@ -187,15 +235,21 @@ export class LiveSession {
         }
       };
 
-      this.ws.onerror = (err) => {
-        console.error('[LiveSession] WebSocket connection error:', err);
-        this.callbacks.onError('Connection error to voice server.');
-        this.disconnect();
+      this.ws.onerror = (err: Event) => {
+        console.warn('[LiveSession] WebSocket connection event:', err);
+        if (!hasOpened) {
+          this.callbacks.onError('Could not establish real-time connection to voice server.');
+        }
       };
 
-      this.ws.onclose = () => {
-        console.log('[LiveSession] WebSocket connection closed');
-        this.disconnect();
+      this.ws.onclose = (event: CloseEvent) => {
+        console.log('[LiveSession] WebSocket connection closed, code:', event.code, 'reason:', event.reason);
+        if (this.state !== 'disconnected') {
+          if (event.code !== 1000 && !hasOpened) {
+            this.callbacks.onError('Voice connection closed unexpectedly. Retrying when awakened.');
+          }
+          this.disconnect();
+        }
       };
     } catch (err: any) {
       console.error('[LiveSession] Failed to connect:', err);
@@ -253,6 +307,15 @@ export class LiveSession {
     this.streamer.stop();
     this.player.stop();
 
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+      } catch (e) {
+        // ignore
+      }
+      this.recognition = null;
+    }
+
     if (this.ws) {
       try {
         this.ws.close();
@@ -266,5 +329,20 @@ export class LiveSession {
     this.outputVolume = 0;
     this.callbacks.onVolumeChange(0, 0);
     this.setState('disconnected');
+  }
+
+  sendTextMessage(text: string): boolean {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          type: 'text',
+          text,
+        })
+      );
+      this.callbacks.onTranscript?.(text, 'user', true);
+      this.setState('thinking');
+      return true;
+    }
+    return false;
   }
 }
