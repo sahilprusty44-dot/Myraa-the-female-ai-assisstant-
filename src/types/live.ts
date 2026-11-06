@@ -65,3 +65,17 @@ export interface ThemeConfig {
   badge: string;
   orbGradient: [string, string, string];
 }
+
+export type Model3DArchetype = 'drone' | 'robot' | 'rover' | 'monolith' | 'satellite';
+export type MaterialPreset3D = 'default' | 'gold' | 'glass' | 'chrome' | 'cyber';
+
+export interface Scene3DConfig {
+  isOpen: boolean;
+  archetype: Model3DArchetype;
+  materialPreset: MaterialPreset3D;
+  explodeFactor: number;
+  rotationSpeed: number;
+  isWireframe: boolean;
+  accentColor?: string;
+  label?: string;
+}

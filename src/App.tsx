@@ -19,7 +19,10 @@ import { PortalCard } from './components/PortalCard';
 import { CompanionDrawer } from './components/CompanionDrawer';
 import { VibeAtmosphere } from './components/VibeAtmosphere';
 import { NotificationBanner } from './components/NotificationBanner';
-import { ChatTerminal } from './components/ChatTerminal';
+import { LiveResponseCard } from './components/LiveResponseCard';
+import { SpatialCanvas } from './components/SpatialCanvas';
+import { MicroOrbAvatar } from './components/MicroOrbAvatar';
+import { Scene3DConfig } from './types/live';
 import { Volume2, Sparkles } from 'lucide-react';
 
 export default function App() {
@@ -44,9 +47,18 @@ export default function App() {
   const [isOrbPaused, setIsOrbPaused] = useState<boolean>(false);
   const [showNucleusOrb, setShowNucleusOrb] = useState<boolean>(true);
 
-  // Real-Time Chat Terminal State
+  // Real-Time Transcript History (kept for session memory / notes)
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(true);
+
+  // 3D Spatial Canvas & Model Showcase State
+  const [scene3D, setScene3D] = useState<Scene3DConfig>({
+    isOpen: false,
+    archetype: 'drone',
+    materialPreset: 'default',
+    explodeFactor: 0,
+    rotationSpeed: 1,
+    isWireframe: false,
+  });
 
   // Companion Notepad & Tool History
   const [notes, setNotes] = useState<NoteItem[]>(() => {
@@ -87,6 +99,26 @@ export default function App() {
       },
       onVibeChange: (newVibe) => {
         setVibe(newVibe);
+      },
+      onOpen3DCanvas: (cfg) => {
+        setScene3D((prev) => ({
+          ...prev,
+          isOpen: true,
+          archetype: cfg.archetype,
+          materialPreset: cfg.materialPreset || prev.materialPreset,
+        }));
+      },
+      onClose3DCanvas: () => {
+        setScene3D((prev) => ({ ...prev, isOpen: false }));
+      },
+      onManipulate3D: (params) => {
+        setScene3D((prev) => ({
+          ...prev,
+          explodeFactor: params.explodeFactor !== undefined ? params.explodeFactor : prev.explodeFactor,
+          rotationSpeed: params.rotationSpeed !== undefined ? params.rotationSpeed : prev.rotationSpeed,
+          materialPreset: params.materialPreset || prev.materialPreset,
+          isWireframe: params.isWireframe !== undefined ? params.isWireframe : prev.isWireframe,
+        }));
       },
       onActionLogged: (log) => {
         setToolLogs((prev) => [log, ...prev.slice(0, 40)]);
@@ -206,14 +238,13 @@ export default function App() {
     setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
-  // Send message via terminal input
-  const handleSendChatMessage = async (text: string) => {
+  const handleSendMessage = async (text: string) => {
     if (!liveSessionRef.current) return;
     if (assistantState === 'disconnected') {
       try {
         await liveSessionRef.current.connect();
       } catch (err: any) {
-        setErrorMessage(err?.message || 'Failed to start voice session');
+        setErrorMessage(err?.message || 'Failed to connect to voice session');
         return;
       }
     }
@@ -229,24 +260,8 @@ export default function App() {
       {/* Immersive Animated Atmosphere */}
       <VibeAtmosphere theme={activeTheme} vibe={vibe} state={assistantState} />
 
-      {/* Real-time Cyberpunk Chat Terminal Docked on Left */}
-      <ChatTerminal
-        messages={messages}
-        onSendMessage={handleSendChatMessage}
-        onClearMessages={handleClearMessages}
-        isOpen={isTerminalOpen}
-        onToggleOpen={() => setIsTerminalOpen((prev) => !prev)}
-        state={assistantState}
-        theme={activeTheme}
-        latencyMs={latencyMs}
-      />
-
-      {/* Main Workspace with responsive left-padding transition for terminal */}
-      <div
-        className={`flex-1 flex flex-col justify-between transition-all duration-300 w-full ${
-          isTerminalOpen ? 'lg:pl-[420px]' : ''
-        }`}
-      >
+      {/* Main Workspace */}
+      <div className="flex-1 flex flex-col justify-between w-full">
         {/* Floating Error / Notification Banner */}
         <NotificationBanner
           message={errorMessage}
@@ -262,25 +277,41 @@ export default function App() {
             isMuted={isMuted}
             notesCount={notes.length}
             toolsCount={toolLogs.length}
-            isTerminalOpen={isTerminalOpen}
-            onToggleTerminal={() => setIsTerminalOpen((prev) => !prev)}
+            is3DOpen={scene3D.isOpen}
+            onToggle3D={() => setScene3D((prev) => ({ ...prev, isOpen: !prev.isOpen }))}
             onToggleMute={handleToggleMute}
             onOpenDrawer={() => setIsDrawerOpen(true)}
           />
         </div>
 
-        {/* Centerpiece: Real-time Audio-to-Audio Core Orb with Libraries.dev ThinkingOrb */}
-        <main className="flex-1 flex flex-col items-center justify-center px-4 -mt-4 sm:-mt-6">
-          <CoreOrb
-            state={assistantState}
-            theme={activeTheme}
-            vibe={vibe}
-            micVolume={micVolume}
-            outputVolume={outputVolume}
-            isMuted={isMuted}
-            onToggleConnect={handleToggleConnect}
-            onToggleMute={handleToggleMute}
-          />
+        {/* Center Workspace */}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center justify-center transition-all duration-500 ease-out z-10">
+          {scene3D.isOpen ? (
+            /* Full-Screen Expansive 3D Spatial Canvas */
+            <div className="w-full flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+              <SpatialCanvas
+                config={scene3D}
+                theme={activeTheme}
+                outputVolume={outputVolume}
+                onClose={() => setScene3D((prev) => ({ ...prev, isOpen: false }))}
+                onUpdateConfig={(partial) => setScene3D((prev) => ({ ...prev, ...partial }))}
+              />
+            </div>
+          ) : (
+            /* Standard Centerpiece: Real-time Audio-to-Audio Core Orb */
+            <div className="w-full max-w-xl flex flex-col items-center justify-center -mt-4 sm:-mt-6 animate-in fade-in duration-300">
+              <CoreOrb
+                state={assistantState}
+                theme={activeTheme}
+                vibe={vibe}
+                micVolume={micVolume}
+                outputVolume={outputVolume}
+                isMuted={isMuted}
+                onToggleConnect={handleToggleConnect}
+                onToggleMute={handleToggleMute}
+              />
+            </div>
+          )}
         </main>
 
         {/* Dynamic Spectral Waveform at Viewport Bottom */}
@@ -306,11 +337,38 @@ export default function App() {
             </span>
             <span>•</span>
             <span className="hidden sm:inline-flex items-center gap-1 text-slate-400">
-              Live Terminal Synced
+              Low-latency Live
             </span>
           </div>
         </footer>
       </div>
+
+      {/* Real-time Conversation Response Box in Bottom-Left Corner (disappears when 3D showcase is active) */}
+      {!scene3D.isOpen && (
+        <LiveResponseCard
+          messages={messages}
+          state={assistantState}
+          theme={activeTheme}
+          outputVolume={outputVolume}
+          micVolume={micVolume}
+          onClear={handleClearMessages}
+          onSendMessage={handleSendMessage}
+        />
+      )}
+
+      {/* 80px Floating Micro Orb Avatar docked bottom-right below 3D canvas when 3D is active */}
+      {scene3D.isOpen && (
+        <MicroOrbAvatar
+          state={assistantState}
+          theme={activeTheme}
+          vibe={vibe}
+          micVolume={micVolume}
+          outputVolume={outputVolume}
+          isMuted={isMuted}
+          onToggleConnect={handleToggleConnect}
+          onToggleMute={handleToggleMute}
+        />
+      )}
 
       {/* Floating Browser Tool Card (when Myraa opens website or executes tool) */}
       <PortalCard

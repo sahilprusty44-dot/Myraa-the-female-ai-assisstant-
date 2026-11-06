@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Mic, MicOff, Settings2, Zap, BookOpen, Activity, Terminal } from 'lucide-react';
+import { Sparkles, Mic, MicOff, Settings2, Zap, BookOpen, Activity, Box } from 'lucide-react';
 import { ThinkingOrb, OrbState } from 'thinking-orbs';
 import { AssistantState, ThemeConfig } from '../types/live';
 
@@ -10,8 +10,8 @@ interface StatusBadgeProps {
   isMuted: boolean;
   notesCount: number;
   toolsCount: number;
-  isTerminalOpen?: boolean;
-  onToggleTerminal?: () => void;
+  is3DOpen?: boolean;
+  onToggle3D?: () => void;
   onToggleMute: () => void;
   onOpenDrawer: () => void;
 }
@@ -23,8 +23,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   isMuted,
   notesCount,
   toolsCount,
-  isTerminalOpen,
-  onToggleTerminal,
+  is3DOpen = false,
+  onToggle3D,
   onToggleMute,
   onOpenDrawer,
 }) => {
@@ -155,19 +155,20 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
           </button>
         )}
 
-        {/* Terminal Toggle Button */}
-        {onToggleTerminal && (
+        {/* 3D Spatial Canvas Showcase Button */}
+        {onToggle3D && (
           <button
-            onClick={onToggleTerminal}
+            type="button"
+            onClick={onToggle3D}
             className={`p-2 sm:px-3 sm:py-2 rounded-xl text-xs backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-md active:scale-95 ${
-              isTerminalOpen
+              is3DOpen
                 ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300'
                 : 'border-white/10 bg-white/5 hover:bg-white/10 text-slate-300'
             }`}
-            title="Toggle Live Chat Terminal"
+            title="Toggle 3D Spatial Studio"
           >
-            <Terminal className="w-4 h-4 text-cyan-400" />
-            <span className="hidden md:inline font-mono text-xs">Terminal</span>
+            <Box className="w-4 h-4 text-cyan-400" />
+            <span className="hidden md:inline font-mono text-xs">3D Studio</span>
           </button>
         )}
 

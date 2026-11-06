@@ -3,7 +3,17 @@
  * and returning prompt responses immediately.
  */
 
-import { FunctionCallItem, NoteItem, ToolActionLog, ActivePortal, ThemeAccent, VisualVibe } from '../types/live';
+import {
+  FunctionCallItem,
+  NoteItem,
+  ToolActionLog,
+  ActivePortal,
+  ThemeAccent,
+  VisualVibe,
+  Model3DArchetype,
+  MaterialPreset3D,
+  Scene3DConfig,
+} from '../types/live';
 
 export type ToolEventListener = {
   onPortalOpen?: (portal: ActivePortal) => void;
@@ -11,6 +21,17 @@ export type ToolEventListener = {
   onNoteAdded?: (note: NoteItem) => void;
   onVibeChange?: (vibe: VisualVibe) => void;
   onActionLogged?: (log: ToolActionLog) => void;
+  onOpen3DCanvas?: (config: {
+    archetype: Model3DArchetype;
+    materialPreset?: MaterialPreset3D;
+  }) => void;
+  onClose3DCanvas?: () => void;
+  onManipulate3D?: (params: {
+    explodeFactor?: number;
+    rotationSpeed?: number;
+    materialPreset?: MaterialPreset3D;
+    isWireframe?: boolean;
+  }) => void;
 };
 
 export class ToolManager {
@@ -157,6 +178,72 @@ export class ToolManager {
               status: 'success',
               vibe,
               message: `Visual dynamic vibe adjusted to ${vibe}.`,
+            };
+            break;
+          }
+
+          case 'open3DCanvas': {
+            const rawArchetype = (args.archetype || 'drone').toLowerCase();
+            const validArchetypes: Model3DArchetype[] = ['drone', 'robot', 'rover', 'satellite', 'monolith'];
+            const archetype: Model3DArchetype = validArchetypes.includes(rawArchetype as Model3DArchetype)
+              ? (rawArchetype as Model3DArchetype)
+              : 'drone';
+
+            const rawMaterial = (args.materialPreset || 'default').toLowerCase();
+            const validMaterials: MaterialPreset3D[] = ['default', 'gold', 'glass', 'chrome', 'cyber'];
+            const materialPreset: MaterialPreset3D = validMaterials.includes(rawMaterial as MaterialPreset3D)
+              ? (rawMaterial as MaterialPreset3D)
+              : 'default';
+
+            this.logAction(name, `3D Model Created: ${archetype.toUpperCase()}`, `Material: ${materialPreset}, Opened spatial canvas on left`);
+
+            if (this.listeners.onOpen3DCanvas) {
+              this.listeners.onOpen3DCanvas({ archetype, materialPreset });
+            }
+
+            result = {
+              status: 'success',
+              archetype,
+              materialPreset,
+              message: `3D canvas opened on left with composite ${archetype} model in ${materialPreset} finish. Core orb slid to right.`,
+            };
+            break;
+          }
+
+          case 'close3DCanvas': {
+            this.logAction(name, '3D Canvas Closed', 'Returned Core Orb to center stage');
+
+            if (this.listeners.onClose3DCanvas) {
+              this.listeners.onClose3DCanvas();
+            }
+
+            result = {
+              status: 'success',
+              message: '3D canvas closed and Core Orb returned to center stage.',
+            };
+            break;
+          }
+
+          case 'manipulate3DModel': {
+            const explodeFactor = typeof args.explodeFactor === 'number' ? args.explodeFactor : undefined;
+            const rotationSpeed = typeof args.rotationSpeed === 'number' ? args.rotationSpeed : undefined;
+            const materialPreset = args.materialPreset as MaterialPreset3D | undefined;
+            const isWireframe = typeof args.isWireframe === 'boolean' ? args.isWireframe : undefined;
+
+            this.logAction(name, '3D Scene Manipulated', `Explode: ${explodeFactor ?? 'unchanged'}, Material: ${materialPreset ?? 'unchanged'}`);
+
+            if (this.listeners.onManipulate3D) {
+              this.listeners.onManipulate3D({
+                explodeFactor,
+                rotationSpeed,
+                materialPreset,
+                isWireframe,
+              });
+            }
+
+            result = {
+              status: 'success',
+              message: '3D model parameters updated via voice command.',
             };
             break;
           }

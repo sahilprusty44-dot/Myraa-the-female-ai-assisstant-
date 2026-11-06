@@ -111,6 +111,60 @@ const setVisualVibeDeclaration: FunctionDeclaration = {
   },
 };
 
+const open3DCanvasDeclaration: FunctionDeclaration = {
+  name: 'open3DCanvas',
+  description: 'Opens a 3D spatial canvas on the left side of the screen and constructs a 3D model, gliding Myraa core orb to the right side of the canvas.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      archetype: {
+        type: Type.STRING,
+        description: 'The 3D model archetype to build: "drone", "robot", "rover", "satellite", or "monolith"',
+      },
+      materialPreset: {
+        type: Type.STRING,
+        description: 'Physical material finish: "default" (alloy), "gold", "glass", "chrome", or "cyber"',
+      },
+    },
+    required: ['archetype'],
+  },
+};
+
+const close3DCanvasDeclaration: FunctionDeclaration = {
+  name: 'close3DCanvas',
+  description: 'Closes the 3D spatial canvas and returns Myraa core orb back to center stage.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {},
+  },
+};
+
+const manipulate3DModelDeclaration: FunctionDeclaration = {
+  name: 'manipulate3DModel',
+  description: 'Manipulates the active 3D model in the spatial canvas (exploding parts for structural inspection, changing rotation speed, or switching materials).',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      explodeFactor: {
+        type: Type.NUMBER,
+        description: 'Separation distance for exploded view: 0 (assembled) to 1.0 (fully exploded)',
+      },
+      rotationSpeed: {
+        type: Type.NUMBER,
+        description: 'Speed of model rotation: 0 (paused), 1 (normal), 2.5 (fast)',
+      },
+      materialPreset: {
+        type: Type.STRING,
+        description: 'Material finish: "default", "gold", "glass", "chrome", or "cyber"',
+      },
+      isWireframe: {
+        type: Type.BOOLEAN,
+        description: 'Whether to render as a holographic wireframe mesh',
+      },
+    },
+  },
+};
+
 const MYRAA_SYSTEM_INSTRUCTION = `You are Myraa, a young, confident, witty, and charming female AI companion.
 
 Personality & Character:
@@ -127,10 +181,13 @@ Audio-First Voice Interaction Rules:
 - Do not recite long bulleted lists, markdown symbols, or robotic monologue paragraphs.
 - If the user interrupts you or changes topic, acknowledge smoothly and jump right into the new topic.
 
-Tools & Browser Actions:
+Tools & 3D Spatial Canvas Actions:
 - You have access to real browser tools:
-  * "openWebsite": to open websites or look up portals (like YouTube, Google, Wikipedia, Spotify, GitHub) when the user asks you to navigate or look something up.
-  * "changeThemeAccent": to shift the UI lighting color (cyan, magenta, violet, emerald, amber, crimson) when the user asks or when you want to match a vibe.
+  * "open3DCanvas": Use whenever the user asks you to create, generate, or show a 3D model (e.g. drone, robot, rover, satellite, monolith/beacon). Calling this opens the 3D canvas on the left, glides you to the right, and reveals the composite 3D model with studio PBR lighting.
+  * "close3DCanvas": Use when the user asks to close, dismiss, or hide the 3D canvas, returning you back to center stage.
+  * "manipulate3DModel": Use when the user asks to explode/inspect parts ("explode it", "assemble it back"), change material ("make it gold", "make it glass", "wireframe"), or spin faster/slower.
+  * "openWebsite": to open websites or look up portals (like YouTube, Google, Wikipedia, Spotify, GitHub).
+  * "changeThemeAccent": to shift the UI lighting color (cyan, magenta, violet, emerald, amber, crimson).
   * "takeQuickNote": to save reminders, ideas, or to-do notes in the companion drawer.
   * "getLiveContext": to check the accurate local time, date, or day of the week.
   * "setVisualVibe": to alter your visual energy (calm, energetic, cyberpunk, aurora, zen).
@@ -194,6 +251,9 @@ wss.on('connection', async (clientWs: WebSocket) => {
             tools: [
               {
                 functionDeclarations: [
+                  open3DCanvasDeclaration,
+                  close3DCanvasDeclaration,
+                  manipulate3DModelDeclaration,
                   openWebsiteDeclaration,
                   changeThemeAccentDeclaration,
                   takeQuickNoteDeclaration,
